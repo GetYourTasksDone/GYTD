@@ -22,7 +22,7 @@ jobs:
 
       # CI Step: Python Check
       - name: Set up Python
-        uses: actions/setup-python@v5 # Note: corrected from actions/checkout
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
@@ -36,7 +36,6 @@ jobs:
         run: docker images | grep getdone-backend
 
       # CI/CD Bridge: Login and Push to GHCR
-      # This step only runs if the 'push' event happened (not for PRs)
       - name: Log in to GHCR
         if: github.event_name == 'push'
         uses: docker/login-action@v3
@@ -57,25 +56,31 @@ jobs:
 
   # PHASE 2: CD (Continuous Deployment)
   deploy:
-    # This ensures deployment only happens on 'push' to dev, not just a PR
     if: github.event_name == 'push'
     needs: build-and-test
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy to Server via SSH
+      - name: Deploy to Server via SSH (ngrok tunnel)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.REMOTE_HOST }}
           username: ${{ secrets.REMOTE_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          password: ${{ secrets.REMOTE_PASSWORD }}
+          port: ${{ secrets.REMOTE_PORT }} # Uses the dynamic ngrok port
           script: |
-            # Login to GHCR on the server
+            echo "Successfully connected to the local Docker Server via ngrok!"
+            
+            # 1. Login to GHCR on your local machine container
             echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-            # Update the container
+            # 2. Update the container
             docker pull ghcr.io/${{ github.repository }}/backend:dev
+            
             docker stop getdone-app || true
             docker rm getdone-app || true
+            
+            # 3. Run the container
+            # We map port 80 of the "server" container to port 5000 of the Flask app
             docker run -d \
               --name getdone-app \
               --restart always \
