@@ -1,7 +1,7 @@
 version: "3.8"
 
 services:
-  # The "Production" Target (Simulating an Azure VMs)
+  # The "Production" Target (Simulating an Azure VM)
   # if the code works on a "Remote" server
   production_server:
     image: rastasheep/ubuntu-sshd
