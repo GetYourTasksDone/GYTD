@@ -65,24 +65,27 @@ jobs:
         with:
           host: ${{ secrets.REMOTE_HOST }}
           username: ${{ secrets.REMOTE_USER }}
-          password: ${{ secrets.REMOTE_PASSWORD }}
-          port: ${{ secrets.REMOTE_PORT }} # Uses the dynamic ngrok port
+          password: ${{ secrets.REMOTE_PASSWORD }} # Strictly Password Authentication
+          port: ${{ secrets.REMOTE_PORT }} 
           script: |
             echo "Successfully connected to the local Docker Server via ngrok!"
             
-            # 1. Login to GHCR on your local machine container
+            # 1. Login to GHCR inside the target container
             echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-            # 2. Update the container
+            # 2. Pull the latest image
             docker pull ghcr.io/${{ github.repository }}/backend:dev
             
+            # 3. Clean up old container
             docker stop getdone-app || true
             docker rm getdone-app || true
             
-            # 3. Run the container
-            # We map port 80 of the "server" container to port 5000 of the Flask app
+            # 4. Deploy the new container
+            # Mapping Port 80 on the SSH server to Port 5000 of the Flask API
             docker run -d \
               --name getdone-app \
               --restart always \
               -p 80:5000 \
               ghcr.io/${{ github.repository }}/backend:dev
+
+            echo "Deployment complete. Container is running."
