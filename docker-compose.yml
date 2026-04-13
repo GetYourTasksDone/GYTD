@@ -1,0 +1,25 @@
+version: "3.8"
+
+services:
+  # The "Production" Target (Simulating an Azure VM)
+  # if the code works on a "Remote" server
+  production_server:
+    image: rastasheep/ubuntu-sshd
+    container_name: getdone_prod_server
+    ports:
+      - "2222:22"
+    environment:
+      - ROOT_PASSWORD=rootpassword
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  # This builds the image using the Dockerfile inside the /backend folder
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: getdone_backend_dev
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=development
