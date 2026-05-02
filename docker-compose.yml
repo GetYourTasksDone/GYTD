@@ -9,7 +9,7 @@ services:
     ports:
       - "2222:22"
     environment:
-      - ROOT_PASSWORD=${MOCK_SERVER_PASSWORD}
+      - ROOT_PASSWORD=shreeyadesai
 
     command: /usr/sbin/sshd -D -o PermitRootLogin=yes -o PasswordAuthentication=yes
 

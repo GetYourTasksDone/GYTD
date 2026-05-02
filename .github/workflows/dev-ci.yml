@@ -2,9 +2,9 @@ name: Dev CI/CD Pipeline
 
 on:
   push:
-    branches: [ "dev" ]
+    branches: ["dev"]
   pull_request:
-    branches: [ "dev" ]
+    branches: ["dev"]
 
 permissions:
   contents: read
@@ -24,7 +24,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       # CI Step: Build local image for testing
       - name: Build Docker Image
@@ -55,37 +55,60 @@ jobs:
             ghcr.io/${{ github.repository }}/backend:${{ github.sha }}
 
   # PHASE 2: CD (Continuous Deployment)
-  deploy:
-    if: github.event_name == 'push'
-    needs: build-and-test
-    runs-on: ubuntu-latest
-    steps:
-      - name: Deploy to Server via SSH (ngrok tunnel)
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.REMOTE_HOST }}
-          username: ${{ secrets.REMOTE_USER }}
-          password: ${{ secrets.REMOTE_PASSWORD }} # Strictly Password Authentication
-          port: ${{ secrets.REMOTE_PORT }} 
-          script: |
-            echo "Successfully connected to the local Docker Server via ngrok!"
-            
-            # 1. Login to GHCR inside the target container
-            echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+deploy:
+  if: github.event_name == 'push'
+  needs: build-and-test
+  runs-on: ubuntu-latest
 
-            # 2. Pull the latest image
-            docker pull ghcr.io/${{ github.repository }}/backend:dev
-            
-            # 3. Clean up old container
-            docker stop getdone-app || true
-            docker rm getdone-app || true
-            
-            # 4. Deploy the new container
-            # Mapping Port 80 on the SSH server to Port 5000 of the Flask API
-            docker run -d \
-              --name getdone-app \
-              --restart always \
-              -p 80:5000 \
-              ghcr.io/${{ github.repository }}/backend:dev
+  steps:
+    # STEP 1: Checkout latest code from GitHub runner
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-            echo "Deployment complete. Container is running."
+    # STEP 2: Copy project files to remote Docker server
+    - name: Copy project files to Server
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: ${{ secrets.REMOTE_HOST }}
+        username: ${{ secrets.REMOTE_USER }}
+        password: ${{ secrets.REMOTE_PASSWORD }}
+        port: ${{ secrets.REMOTE_PORT }}
+        source: "./backend"
+        target: "/root/gytd"
+
+    # STEP 3: SSH into remote server and deploy
+    - name: Deploy to Server via SSH
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.REMOTE_HOST }}
+        username: ${{ secrets.REMOTE_USER }}
+        password: ${{ secrets.REMOTE_PASSWORD }}
+        port: ${{ secrets.REMOTE_PORT }}
+
+        script: |
+          echo "Connected to local Docker production server!"
+
+          # Navigate to copied backend folder
+          cd /root/gytd/backend
+
+          # Stop old container
+          docker stop getdone-app || true
+          docker rm getdone-app || true
+
+          # Remove old image
+          docker rmi getdone-backend || true
+
+          # Build latest image directly on server
+          docker build -t getdone-backend .
+
+          # Run latest container
+          docker run -d \
+            --name getdone-app \
+            --restart always \
+            -p 80:5000 \
+            getdone-backend
+
+          # Verify deployment
+          docker ps
+
+          echo "Deployment complete."
