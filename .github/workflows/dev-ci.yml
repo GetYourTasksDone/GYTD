@@ -28,6 +28,7 @@ jobs:
 
       - name: Run basic import test
         run: |
+          cd backend
           python -c "import app"
 
       - name: Build Docker Image (local check only)
